@@ -39,13 +39,13 @@ export default function Goals() {
   const [contributeAmount, setContributeAmount] = useState('');
 
   const currencySymbol = useMemo(() => {
-    if (!settings) return '$';
+    if (!settings) return 'Rs';
     const c = settings.currency;
     if (c === 'EUR') return '€';
     if (c === 'GBP') return '£';
-    if (c === 'INR') return '₹';
+    if (c === 'INR') return 'Rs';
     if (c === 'JPY') return '¥';
-    return '$';
+    return 'Rs';
   }, [settings]);
 
   const stats = useMemo(() => {

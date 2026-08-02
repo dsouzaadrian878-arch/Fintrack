@@ -117,11 +117,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* User Quick Info Footer */}
         <div className="p-4 border-t border-slate-50 dark:border-slate-800/30">
           <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all cursor-pointer" onClick={() => navigate('/settings')}>
-            <img
-              src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80'}
-              alt="Avatar"
-              className="h-10 w-10 rounded-full border border-slate-100 dark:border-slate-800 object-cover"
-            />
+            <div className="h-10 w-10 shrink-0 rounded-full border border-slate-200 dark:border-slate-700 bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-lg">
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-950 dark:text-white truncate">{user?.name}</p>
               <p className="text-2xs text-slate-400 dark:text-slate-500 truncate">{user?.email}</p>
@@ -190,11 +188,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="pt-4 border-t border-slate-50 dark:border-slate-800/40 space-y-2">
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-center gap-2">
-                    <img
-                      src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80'}
-                      alt="Avatar"
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
+                    <div className="h-8 w-8 shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-sm">
+                      {user?.name?.[0]?.toUpperCase() || 'U'}
+                    </div>
                     <span className="text-xs font-semibold truncate max-w-[120px]">{user?.name}</span>
                   </div>
                   <Button variant="ghost" size="sm" onClick={handleLogout} className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 px-2 py-1">
@@ -337,11 +333,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex items-center gap-1.5 focus:outline-none"
               >
-                <img
-                  src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80'}
-                  alt="Avatar"
-                  className="h-8.5 w-8.5 rounded-full border border-slate-200 dark:border-slate-800 object-cover cursor-pointer hover:opacity-90 transition-all shadow-sm"
-                />
+                <div className="h-8.5 w-8.5 shrink-0 rounded-full border border-slate-200 dark:border-slate-800 bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold text-sm cursor-pointer hover:opacity-90 transition-all shadow-sm">
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </div>
               </button>
 
               <AnimatePresence>

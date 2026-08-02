@@ -31,7 +31,12 @@ const saveJSON = <T>(key: string, data: T): void => {
 export const StorageService = {
   // --- AUTH / USER ---
   getCurrentUser(): User | null {
-    return parseJSON<User | null>(KEYS.USER, null);
+    const user = parseJSON<User | null>(KEYS.USER, null);
+    if (user && user.currency === 'USD') {
+      user.currency = 'INR';
+      this.setCurrentUser(user);
+    }
+    return user;
   },
 
   setCurrentUser(user: User | null): void {
@@ -49,7 +54,18 @@ export const StorageService = {
   },
 
   getUsers(): User[] {
-    return parseJSON<User[]>(KEYS.USERS_LIST, []);
+    const users = parseJSON<User[]>(KEYS.USERS_LIST, []);
+    let modified = false;
+    users.forEach(u => {
+      if (u.currency === 'USD') {
+        u.currency = 'INR';
+        modified = true;
+      }
+    });
+    if (modified) {
+      saveJSON(KEYS.USERS_LIST, users);
+    }
+    return users;
   },
 
   createUser(user: User): void {
@@ -229,10 +245,16 @@ export const StorageService = {
     if (!allSettings[userId]) {
       allSettings[userId] = {
         darkMode: false,
-        currency: 'USD',
+        currency: 'INR',
         backupReminder: true,
-        largeExpenseThreshold: 1000,
+        largeExpenseThreshold: 50000,
       };
+      saveJSON(KEYS.SETTINGS, allSettings);
+    } else if (allSettings[userId].currency === 'USD') {
+      allSettings[userId].currency = 'INR';
+      if (allSettings[userId].largeExpenseThreshold === 1000) {
+        allSettings[userId].largeExpenseThreshold = 50000;
+      }
       saveJSON(KEYS.SETTINGS, allSettings);
     }
     return allSettings[userId];
@@ -288,72 +310,6 @@ export const StorageService = {
   },
 
   // --- DATABASE RESET / SEED ---
-  seedDemoData(userId: string): void {
-    // Check if user has data already. If so, don't overwrite.
-    const txns = this.getTransactions(userId);
-    if (txns.length > 0) return;
-
-    const date = new Date();
-    const currentYear = date.getFullYear();
-    const currentMonth = date.getMonth();
-
-    const formatOffsetDate = (offsetDays: number): string => {
-      const d = new Date();
-      d.setDate(d.getDate() - offsetDays);
-      return d.toISOString().split('T')[0];
-    };
-
-    // Prepopulate some realistic transactions
-    const seedTxns: Omit<Transaction, 'id' | 'userId'>[] = [
-      { title: 'TechCorp Salary', amount: 5500, type: 'income', categoryId: 'cat_salary', paymentMethod: 'Bank Transfer', date: formatOffsetDate(1), notes: 'Monthly base pay' },
-      { title: 'Freelance Design', amount: 1200, type: 'income', categoryId: 'cat_freelance', paymentMethod: 'PayPal', date: formatOffsetDate(3), notes: 'Fintech UI redesign project' },
-      { title: 'Dividend Payout', amount: 150, type: 'income', categoryId: 'cat_investments', paymentMethod: 'Bank Transfer', date: formatOffsetDate(8), notes: 'S&P 500 dividends' },
-      
-      { title: 'Whole Foods Grocery', amount: 245.5, type: 'expense', categoryId: 'cat_food', paymentMethod: 'Debit Card', date: formatOffsetDate(0), notes: 'Weekly organic groceries', tags: ['groceries', 'food'] },
-      { title: 'Apartment Rent', amount: 1850, type: 'expense', categoryId: 'cat_housing', paymentMethod: 'Bank Transfer', date: formatOffsetDate(8), notes: 'July housing expense' },
-      { title: 'Electric & Gas Bill', amount: 112.4, type: 'expense', categoryId: 'cat_utilities', paymentMethod: 'Debit Card', date: formatOffsetDate(4), notes: 'City Power & Gas' },
-      { title: 'Uber Ride', amount: 24.5, type: 'expense', categoryId: 'cat_transport', paymentMethod: 'Credit Card', date: formatOffsetDate(2), notes: 'Ride to dinner' },
-      { title: 'Sushi Dinner with Friends', amount: 124.8, type: 'expense', categoryId: 'cat_food', paymentMethod: 'Credit Card', date: formatOffsetDate(3), notes: 'Celebration dinner', tags: ['social', 'food'] },
-      { title: 'Netflix Subscription', amount: 19.99, type: 'expense', categoryId: 'cat_entertainment', paymentMethod: 'Credit Card', date: formatOffsetDate(7), notes: 'Premium 4K streaming' },
-      { title: 'Gym Membership', amount: 65, type: 'expense', categoryId: 'cat_healthcare', paymentMethod: 'Debit Card', date: formatOffsetDate(6), notes: 'Equinox subscription' },
-      { title: 'Online Course - React 19', amount: 49.99, type: 'expense', categoryId: 'cat_education', paymentMethod: 'PayPal', date: formatOffsetDate(5), notes: 'Udemy masterclass' },
-      { title: 'Nike Running Shoes', amount: 135, type: 'expense', categoryId: 'cat_shopping', paymentMethod: 'Credit Card', date: formatOffsetDate(2), notes: 'Pegasus 40 shoes', tags: ['fitness', 'shopping'] },
-      { title: 'Gas Station Refill', amount: 45, type: 'expense', categoryId: 'cat_transport', paymentMethod: 'Debit Card', date: formatOffsetDate(5), notes: 'Commute fuel' },
-    ];
-
-    seedTxns.forEach(t => this.addTransaction(userId, t));
-
-    // Save Budgets
-    const seedBudgets: Omit<Budget, 'id' | 'userId'>[] = [
-      { categoryId: 'cat_food', amount: 600, month: currentMonth, year: currentYear },
-      { categoryId: 'cat_housing', amount: 1900, month: currentMonth, year: currentYear },
-      { categoryId: 'cat_utilities', amount: 200, month: currentMonth, year: currentYear },
-      { categoryId: 'cat_transport', amount: 300, month: currentMonth, year: currentYear },
-      { categoryId: 'cat_shopping', amount: 400, month: currentMonth, year: currentYear },
-      { categoryId: 'cat_entertainment', amount: 150, month: currentMonth, year: currentYear },
-    ];
-
-    seedBudgets.forEach(b => this.saveBudget(userId, b));
-
-    // Save Savings Goals
-    const seedGoals: Omit<SavingsGoal, 'id' | 'userId'>[] = [
-      { name: 'Emergency Fund', targetAmount: 10000, currentAmount: 6500, deadline: `${currentYear}-12-31`, createdAt: formatOffsetDate(30) },
-      { name: 'Japan Travel Trip', targetAmount: 4000, currentAmount: 1800, deadline: `${currentYear + 1}-04-15`, createdAt: formatOffsetDate(15) },
-      { name: 'MacBook Pro M4', targetAmount: 2500, currentAmount: 2500, deadline: formatOffsetDate(1), createdAt: formatOffsetDate(45) },
-    ];
-
-    seedGoals.forEach(g => this.saveGoal(userId, g));
-
-    // Add some initial notifications
-    const seedNotifications: Omit<Notification, 'id' | 'userId' | 'date' | 'read'>[] = [
-      { title: 'Goal Achieved! 🎉', message: 'Congratulations! You have completed your goal "MacBook Pro M4"!', type: 'goal_alert' },
-      { title: 'Food Budget Alert ⚠️', message: 'You have used 63% of your Food & Dining budget.', type: 'budget_alert' },
-      { title: 'Welcome to FinTrack!', message: 'Explore the dashboard, track your transactions, and build savings habits.', type: 'system' },
-    ];
-
-    seedNotifications.forEach(n => this.addNotification(userId, n));
-  },
-
   resetAllData(): void {
     localStorage.clear();
   }

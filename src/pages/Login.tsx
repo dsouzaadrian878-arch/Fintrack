@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Mail, Lock, ShieldCheck, ArrowRight, Sparkles } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useStore } from '../store';
 import { Input, Button, Card } from '../components/UI';
 
@@ -18,13 +18,6 @@ export default function Login() {
     if (!email) return;
 
     const success = await login(email);
-    if (success) {
-      navigate('/dashboard');
-    }
-  };
-
-  const handleDemoLogin = async () => {
-    const success = await login('demo@fintrack.app');
     if (success) {
       navigate('/dashboard');
     }
@@ -58,7 +51,7 @@ export default function Login() {
 
           {showForgotMsg && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-medium text-emerald-700 dark:text-emerald-400 text-center">
-              A simulation reset link was requested. For Local Storage build, try logging in with the demo account!
+              A simulation reset link was requested.
             </div>
           )}
 
@@ -109,25 +102,6 @@ export default function Login() {
               Sign In <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </form>
-
-          {/* Quick Demo Button */}
-          <div className="relative flex items-center justify-center my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-100 dark:border-slate-800" />
-            </div>
-            <span className="relative px-3 bg-white dark:bg-slate-900 text-3xs font-semibold text-slate-400 uppercase tracking-widest">
-              or test-drive instantly
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/40 font-semibold text-xs transition-all outline-none"
-          >
-            <Sparkles className="h-4 w-4 text-amber-500 fill-amber-500" />
-            Explore with Demo Account
-          </button>
 
           <p className="text-center text-xs text-slate-500 dark:text-slate-400">
             Don't have an account?{' '}

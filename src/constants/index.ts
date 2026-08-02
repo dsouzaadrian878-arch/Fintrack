@@ -1,10 +1,10 @@
 import { Category } from '../types';
 
 export const CURRENCIES = [
+  { code: 'INR', symbol: 'Rs', name: 'Indian Rupee' },
   { code: 'USD', symbol: '$', name: 'US Dollar' },
   { code: 'EUR', symbol: '€', name: 'Euro' },
   { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
   { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
   { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
   { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
@@ -36,12 +36,4 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat_freelance', userId: 'system', name: 'Freelance & Side Hustles', icon: 'Laptop', color: 'teal', type: 'income' },
   { id: 'cat_investments', userId: 'system', name: 'Investments', icon: 'TrendingUp', color: 'purple', type: 'income' },
   { id: 'cat_gifts', userId: 'system', name: 'Gifts & Grants', icon: 'Gift', color: 'orange', type: 'income' },
-];
-
-export const AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&h=120&q=80',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=120&h=120&q=80',
 ];

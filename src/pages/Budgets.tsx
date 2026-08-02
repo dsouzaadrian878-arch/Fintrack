@@ -35,13 +35,13 @@ export default function Budgets() {
   const currentYear = date.getFullYear();
 
   const currencySymbol = useMemo(() => {
-    if (!settings) return '$';
+    if (!settings) return 'Rs';
     const c = settings.currency;
     if (c === 'EUR') return '€';
     if (c === 'GBP') return '£';
-    if (c === 'INR') return '₹';
+    if (c === 'INR') return 'Rs';
     if (c === 'JPY') return '¥';
-    return '$';
+    return 'Rs';
   }, [settings]);
 
   // Aggregate expenditures by category for the current month

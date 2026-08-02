@@ -106,29 +106,11 @@ export const useStore = create<FinTrackStore>((set, get) => ({
       let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
 
       if (!user) {
-        // If it's the default demo, auto-register
-        if (email.toLowerCase() === 'demo@fintrack.app') {
-          user = {
-            id: 'user_demo',
-            name: name || 'Demo User',
-            email: 'demo@fintrack.app',
-            currency: 'USD',
-            theme: 'light',
-            createdAt: new Date().toISOString(),
-          };
-          StorageService.createUser(user);
-        } else {
-          set({ isLoading: false, error: 'User not found. Please sign up.' });
-          return false;
-        }
+        set({ isLoading: false, error: 'User not found. Please sign up.' });
+        return false;
       }
 
       StorageService.setCurrentUser(user);
-      
-      // Seed demo data if newly registered demo user
-      if (user.id === 'user_demo') {
-        StorageService.seedDemoData(user.id);
-      }
 
       set({ user, isLoading: false });
       get().init();
@@ -154,7 +136,7 @@ export const useStore = create<FinTrackStore>((set, get) => ({
         id: 'user_' + Math.random().toString(36).substr(2, 9),
         name,
         email: email.toLowerCase(),
-        currency: 'USD',
+        currency: 'INR',
         theme: 'light',
         createdAt: new Date().toISOString(),
       };
@@ -242,13 +224,13 @@ export const useStore = create<FinTrackStore>((set, get) => ({
         if (totalWithNew > catBudget.amount) {
           get().addNotification(
             'Budget Exceeded! ⚠️',
-            `You have exceeded your monthly budget for "${catName}" of ${settings?.currency || '$'} ${catBudget.amount.toLocaleString()} (Spent: ${settings?.currency || '$'} ${totalWithNew.toLocaleString()}).`,
+            `You have exceeded your monthly budget for "${catName}" of ${settings?.currency || 'Rs'} ${catBudget.amount.toLocaleString()} (Spent: ${settings?.currency || 'Rs'} ${totalWithNew.toLocaleString()}).`,
             'budget_alert'
           );
         } else if (totalWithNew >= catBudget.amount * 0.8) {
           get().addNotification(
             'Budget Warning ⚠️',
-            `You have used 80% or more of your monthly budget for "${catName}". Spent: ${settings?.currency || '$'} ${totalWithNew.toLocaleString()} of ${settings?.currency || '$'} ${catBudget.amount.toLocaleString()}.`,
+            `You have used 80% or more of your monthly budget for "${catName}". Spent: ${settings?.currency || 'Rs'} ${totalWithNew.toLocaleString()} of ${settings?.currency || 'Rs'} ${catBudget.amount.toLocaleString()}.`,
             'budget_alert'
           );
         }
@@ -380,7 +362,7 @@ export const useStore = create<FinTrackStore>((set, get) => ({
     if (isCompletedJustNow) {
       get().addNotification(
         'Savings Goal Achieved! 🎉',
-        `Fantastic job! You've successfully hit your target of ${get().settings?.currency || '$'} ${saved.targetAmount.toLocaleString()} for "${saved.name}"!`,
+        `Fantastic job! You've successfully hit your target of ${get().settings?.currency || 'Rs'} ${saved.targetAmount.toLocaleString()} for "${saved.name}"!`,
         'goal_alert'
       );
     }

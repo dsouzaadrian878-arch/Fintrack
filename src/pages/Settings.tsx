@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store';
 import { Card, Button, Input, Modal } from '../components/UI';
-import { CURRENCIES, AVATARS } from '../constants';
+import { CURRENCIES } from '../constants';
 
 export default function Settings() {
   const {
@@ -36,13 +36,12 @@ export default function Settings() {
   // Profile states
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [selectedAvatar, setSelectedAvatar] = useState(user?.avatarUrl || AVATARS[0]);
   const [showProfileSuccess, setShowProfileSuccess] = useState(false);
 
   // Settings states
   const [darkMode, setDarkMode] = useState(settings?.darkMode || false);
-  const [currency, setCurrency] = useState(settings?.currency || 'USD');
-  const [largeThreshold, setLargeThreshold] = useState(settings?.largeExpenseThreshold?.toString() || '1000');
+  const [currency, setCurrency] = useState(settings?.currency || 'INR');
+  const [largeThreshold, setLargeThreshold] = useState(settings?.largeExpenseThreshold?.toString() || '50000');
   const [showSettingsSuccess, setShowSettingsSuccess] = useState(false);
 
   // Reset modal state
@@ -54,7 +53,7 @@ export default function Settings() {
 
   const currencySymbol = useMemo(() => {
     const curr = CURRENCIES.find(c => c.code === currency);
-    return curr ? curr.symbol : '$';
+    return curr ? curr.symbol : 'Rs';
   }, [currency]);
 
   // Handle Profile Submit
@@ -64,8 +63,7 @@ export default function Settings() {
 
     updateProfile({
       name,
-      email,
-      avatarUrl: selectedAvatar
+      email
     });
 
     setShowProfileSuccess(true);
@@ -203,32 +201,6 @@ export default function Settings() {
 
             <form onSubmit={handleProfileSubmit} className="space-y-6">
               
-              {/* Avatar options selection list */}
-              <div className="space-y-2.5">
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Choose Avatar Profile</label>
-                <div className="flex flex-wrap gap-4 items-center">
-                  <img
-                    src={selectedAvatar}
-                    alt="Active Avatar"
-                    className="h-16 w-16 rounded-full border-2 border-emerald-600 object-cover p-0.5 shadow-md"
-                  />
-                  <div className="flex flex-wrap gap-2.5">
-                    {AVATARS.map((av, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => setSelectedAvatar(av)}
-                        className={`h-10 w-10 rounded-full overflow-hidden border-2 transition-all relative ${
-                          selectedAvatar === av ? 'border-emerald-600' : 'border-slate-100 dark:border-slate-800'
-                        }`}
-                      >
-                        <img src={av} alt="Avatar option" className="h-full w-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Display Username"

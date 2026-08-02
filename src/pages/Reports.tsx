@@ -24,13 +24,13 @@ export default function Reports() {
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
 
   const currencySymbol = useMemo(() => {
-    if (!settings) return '$';
+    if (!settings) return 'Rs';
     const c = settings.currency;
     if (c === 'EUR') return '€';
     if (c === 'GBP') return '£';
-    if (c === 'INR') return '₹';
+    if (c === 'INR') return 'Rs';
     if (c === 'JPY') return '¥';
-    return '$';
+    return 'Rs';
   }, [settings]);
 
   const months = [

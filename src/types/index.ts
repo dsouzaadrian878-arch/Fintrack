@@ -2,7 +2,6 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  avatarUrl?: string;
   currency: string;
   theme: 'light' | 'dark';
   createdAt: string;

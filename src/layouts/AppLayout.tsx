@@ -31,7 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     markNotificationRead,
     markAllNotificationsRead,
     clearNotifications,
-    updateProfile
+    updateUserProfile
   } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
@@ -61,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const toggleTheme = () => {
     if (!user) return;
     const nextTheme = user.theme === 'light' ? 'dark' : 'light';
-    updateProfile({ theme: nextTheme });
+    updateUserProfile({ theme: nextTheme });
   };
 
   const handleLogout = () => {

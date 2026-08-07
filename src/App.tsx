@@ -33,12 +33,19 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { init } = useStore();
+  const { init, isLoading } = useStore();
 
   useEffect(() => {
-    // Hydrate store from local storage on load
     init();
   }, [init]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
 
   return (
     <Router>

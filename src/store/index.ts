@@ -1,6 +1,48 @@
 import { create } from 'zustand';
 import { User, Transaction, Category, Budget, SavingsGoal, Settings, Notification } from '../types';
-import { StorageService } from '../services/storage';
+import { auth, db } from '../services/firebase';
+import { 
+  signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile
+} from 'firebase/auth';
+import { 
+  collection, doc, getDoc, setDoc, updateDoc, deleteDoc, 
+  onSnapshot, query, orderBy, addDoc, serverTimestamp
+} from 'firebase/firestore';
+import { DEFAULT_CATEGORIES } from '../constants';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 interface FinTrackStore {
   // State
@@ -18,47 +60,44 @@ interface FinTrackStore {
   init: () => void;
 
   // Auth Actions
-  login: (email: string, name?: string) => Promise<boolean>;
-  signup: (name: string, email: string) => Promise<boolean>;
+  login: (email: string, password?: string) => Promise<boolean>;
+  signup: (name: string, email: string, password?: string) => Promise<boolean>;
+  googleLogin: () => Promise<boolean>;
   logout: () => void;
-  updateProfile: (updates: Partial<User>) => void;
+  updateUserProfile: (updates: Partial<User>) => void;
 
   // Transaction Actions
-  fetchTransactions: () => void;
-  addTransaction: (txn: Omit<Transaction, 'id' | 'userId'>) => void;
-  updateTransaction: (txn: Transaction) => void;
-  deleteTransaction: (id: string) => void;
+  addTransaction: (txn: Omit<Transaction, 'id' | 'userId'>) => Promise<void>;
+  updateTransaction: (txn: Transaction) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
 
   // Category Actions
-  fetchCategories: () => void;
-  addCategory: (category: Omit<Category, 'id' | 'userId'>) => void;
-  updateCategory: (category: Category) => void;
-  deleteCategory: (id: string) => void;
+  addCategory: (category: Omit<Category, 'id' | 'userId'>) => Promise<void>;
+  updateCategory: (category: Category) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
 
   // Budget Actions
-  fetchBudgets: () => void;
-  saveBudget: (budget: Omit<Budget, 'id' | 'userId'>) => void;
-  deleteBudget: (id: string) => void;
+  saveBudget: (budget: Omit<Budget, 'id' | 'userId'>) => Promise<void>;
+  deleteBudget: (id: string) => Promise<void>;
 
   // Goal Actions
-  fetchGoals: () => void;
-  saveGoal: (goal: Omit<SavingsGoal, 'id' | 'userId'> | SavingsGoal) => void;
-  deleteGoal: (id: string) => void;
+  saveGoal: (goal: Omit<SavingsGoal, 'id' | 'userId'> | SavingsGoal) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
 
   // Settings Actions
-  fetchSettings: () => void;
-  updateSettings: (settings: Settings) => void;
+  updateSettings: (settings: Settings) => Promise<void>;
 
   // Notification Actions
-  fetchNotifications: () => void;
-  addNotification: (title: string, message: string, type: Notification['type']) => void;
-  markNotificationRead: (id: string) => void;
-  markAllNotificationsRead: () => void;
-  clearNotifications: () => void;
+  addNotification: (title: string, message: string, type: Notification['type']) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  clearNotifications: () => Promise<void>;
 
   // Global Actions
   resetAllData: () => void;
 }
+
+let unsubscribers: (() => void)[] = [];
 
 export const useStore = create<FinTrackStore>((set, get) => ({
   user: null,
@@ -68,52 +107,119 @@ export const useStore = create<FinTrackStore>((set, get) => ({
   goals: [],
   settings: null,
   notifications: [],
-  isLoading: false,
+  isLoading: true,
   error: null,
 
   init: () => {
-    const user = StorageService.getCurrentUser();
-    if (user) {
-      set({ user, isLoading: true });
-      
-      // Load user data
-      const txns = StorageService.getTransactions(user.id);
-      const categories = StorageService.getCategories(user.id);
-      const budgets = StorageService.getBudgets(user.id);
-      const goals = StorageService.getGoals(user.id);
-      const settings = StorageService.getSettings(user.id);
-      const notifications = StorageService.getNotifications(user.id);
+    onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          let userData: User;
+          if (userDoc.exists()) {
+            userData = userDoc.data() as User;
+          } else {
+            userData = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || 'User',
+              email: firebaseUser.email || '',
+              currency: 'INR',
+              theme: 'light',
+              createdAt: new Date().toISOString(),
+            };
+            await setDoc(userDocRef, userData);
 
-      set({
-        transactions: txns,
-        categories,
-        budgets,
-        goals,
-        settings,
-        notifications,
-        isLoading: false,
-      });
-    }
+            // Default categories
+            for (const cat of DEFAULT_CATEGORIES) {
+              const newCatRef = doc(collection(db, 'users', firebaseUser.uid, 'categories'));
+              await setDoc(newCatRef, { ...cat, id: newCatRef.id, userId: firebaseUser.uid });
+            }
+            
+            // Default settings
+            const settingsDocRef = doc(db, 'users', firebaseUser.uid, 'settings', 'default');
+            await setDoc(settingsDocRef, {
+              darkMode: false,
+              currency: 'INR',
+              backupReminder: true,
+              largeExpenseThreshold: 50000,
+            });
+          }
+
+          set({ user: userData, isLoading: false });
+          
+          // Clear previous listeners
+          unsubscribers.forEach(unsub => unsub());
+          unsubscribers = [];
+
+          // Subscribe to Settings
+          unsubscribers.push(onSnapshot(doc(db, 'users', firebaseUser.uid, 'settings', 'default'), (doc) => {
+            if (doc.exists()) {
+              set({ settings: doc.data() as Settings });
+            }
+          }, (error) => handleFirestoreError(error, OperationType.GET, 'users/settings')));
+
+          // Subscribe to Transactions
+          const txnsQuery = query(collection(db, 'users', firebaseUser.uid, 'transactions'), orderBy('date', 'desc'));
+          unsubscribers.push(onSnapshot(txnsQuery, (snapshot) => {
+            const txns = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
+            set({ transactions: txns });
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'users/transactions')));
+
+          // Subscribe to Categories
+          const catsQuery = query(collection(db, 'users', firebaseUser.uid, 'categories'));
+          unsubscribers.push(onSnapshot(catsQuery, (snapshot) => {
+            const cats = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Category));
+            set({ categories: cats });
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'users/categories')));
+
+          // Subscribe to Budgets
+          const budgetsQuery = query(collection(db, 'users', firebaseUser.uid, 'budgets'));
+          unsubscribers.push(onSnapshot(budgetsQuery, (snapshot) => {
+            const budgets = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Budget));
+            set({ budgets });
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'users/budgets')));
+
+          // Subscribe to Goals
+          const goalsQuery = query(collection(db, 'users', firebaseUser.uid, 'goals'));
+          unsubscribers.push(onSnapshot(goalsQuery, (snapshot) => {
+            const goals = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as SavingsGoal));
+            set({ goals });
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'users/goals')));
+
+          // Subscribe to Notifications
+          const notifsQuery = query(collection(db, 'users', firebaseUser.uid, 'notifications'), orderBy('date', 'desc'));
+          unsubscribers.push(onSnapshot(notifsQuery, (snapshot) => {
+            const notifications = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Notification));
+            set({ notifications });
+          }, (error) => handleFirestoreError(error, OperationType.LIST, 'users/notifications')));
+
+        } catch (error) {
+          console.error(error);
+          set({ isLoading: false, error: 'Failed to load user data' });
+        }
+      } else {
+        set({
+          user: null,
+          transactions: [],
+          categories: [],
+          budgets: [],
+          goals: [],
+          settings: null,
+          notifications: [],
+          isLoading: false,
+        });
+        unsubscribers.forEach(unsub => unsub());
+        unsubscribers = [];
+      }
+    });
   },
 
-  login: async (email: string, name?: string) => {
+  login: async (email, password = 'dummy_password_for_simulation') => {
     set({ isLoading: true, error: null });
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     try {
-      const users = StorageService.getUsers();
-      let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-      if (!user) {
-        set({ isLoading: false, error: 'User not found. Please sign up.' });
-        return false;
-      }
-
-      StorageService.setCurrentUser(user);
-
-      set({ user, isLoading: false });
-      get().init();
+      await signInWithEmailAndPassword(auth, email, password);
       return true;
     } catch (err) {
       set({ isLoading: false, error: 'Failed to login' });
@@ -121,347 +227,251 @@ export const useStore = create<FinTrackStore>((set, get) => ({
     }
   },
 
-  signup: async (name: string, email: string) => {
+  signup: async (name, email, password = 'dummy_password_for_simulation') => {
     set({ isLoading: true, error: null });
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     try {
-      const users = StorageService.getUsers();
-      if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-        set({ isLoading: false, error: 'Email already exists' });
-        return false;
-      }
-
-      const newUser: User = {
-        id: 'user_' + Math.random().toString(36).substr(2, 9),
-        name,
-        email: email.toLowerCase(),
-        currency: 'INR',
-        theme: 'light',
-        createdAt: new Date().toISOString(),
-      };
-
-      StorageService.createUser(newUser);
-      StorageService.setCurrentUser(newUser);
-
-      set({ user: newUser, isLoading: false });
-      get().init();
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName: name });
       return true;
-    } catch (err) {
-      set({ isLoading: false, error: 'Failed to sign up' });
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message || 'Failed to sign up' });
       return false;
     }
   },
 
-  logout: () => {
-    StorageService.setCurrentUser(null);
-    set({
-      user: null,
-      transactions: [],
-      categories: [],
-      budgets: [],
-      goals: [],
-      settings: null,
-      notifications: [],
-    });
+  googleLogin: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      return true;
+    } catch (err) {
+      set({ isLoading: false, error: 'Google sign in failed' });
+      return false;
+    }
   },
 
-  updateProfile: (updates: Partial<User>) => {
+  logout: async () => {
+    await signOut(auth);
+  },
+
+  updateUserProfile: async (updates) => {
     const { user } = get();
     if (!user) return;
-
-    const updatedUser = { ...user, ...updates };
-    StorageService.updateUser(updatedUser);
-    set({ user: updatedUser });
+    try {
+      const updatedUser = { ...user, ...updates };
+      await updateDoc(doc(db, 'users', user.id), updates);
+      if (updates.name && auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: updates.name });
+      }
+      set({ user: updatedUser });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users');
+    }
   },
 
   // --- TRANSACTIONS ---
-  fetchTransactions: () => {
-    const { user } = get();
-    if (!user) return;
-    set({ transactions: StorageService.getTransactions(user.id) });
-  },
-
-  addTransaction: (txn) => {
+  addTransaction: async (txn) => {
     const { user, settings } = get();
     if (!user) return;
+    try {
+      const newTxnRef = doc(collection(db, 'users', user.id, 'transactions'));
+      const newTxn = { ...txn, id: newTxnRef.id, userId: user.id };
+      await setDoc(newTxnRef, newTxn);
 
-    const newTxn = StorageService.addTransaction(user.id, txn);
-    
-    // Check constraints & generate notifications
-    // 1. Check for large expense
-    if (settings && txn.type === 'expense' && txn.amount >= settings.largeExpenseThreshold) {
-      get().addNotification(
-        'Large Expense Added 💸',
-        `A large expense of ${settings.currency} ${txn.amount.toLocaleString()} for "${txn.title}" was recorded.`,
-        'large_expense'
-      );
-    }
-
-    // 2. Check for budget threshold exceeded
-    if (txn.type === 'expense') {
-      const month = new Date(txn.date).getMonth();
-      const year = new Date(txn.date).getFullYear();
-      
-      const budgets = get().budgets.filter(b => b.month === month && b.year === year);
-      const catBudget = budgets.find(b => b.categoryId === txn.categoryId);
-      
-      if (catBudget) {
-        // Calculate category spend
-        const txns = get().transactions;
-        // include newly added txn in total calculation
-        const totalWithNew = [newTxn, ...txns]
-          .filter(t => t.categoryId === txn.categoryId && t.type === 'expense')
-          .filter(t => {
-            const d = new Date(t.date);
-            return d.getMonth() === month && d.getFullYear() === year;
-          })
-          .reduce((sum, t) => sum + t.amount, 0);
-
-        const category = get().categories.find(c => c.id === txn.categoryId);
-        const catName = category ? category.name : 'Category';
-
-        if (totalWithNew > catBudget.amount) {
-          get().addNotification(
-            'Budget Exceeded! ⚠️',
-            `You have exceeded your monthly budget for "${catName}" of ${settings?.currency || 'Rs'} ${catBudget.amount.toLocaleString()} (Spent: ${settings?.currency || 'Rs'} ${totalWithNew.toLocaleString()}).`,
-            'budget_alert'
-          );
-        } else if (totalWithNew >= catBudget.amount * 0.8) {
-          get().addNotification(
-            'Budget Warning ⚠️',
-            `You have used 80% or more of your monthly budget for "${catName}". Spent: ${settings?.currency || 'Rs'} ${totalWithNew.toLocaleString()} of ${settings?.currency || 'Rs'} ${catBudget.amount.toLocaleString()}.`,
-            'budget_alert'
-          );
-        }
+      if (settings && txn.type === 'expense' && txn.amount >= settings.largeExpenseThreshold) {
+        await get().addNotification(
+          'Large Expense Added 💸',
+          `A large expense of ${settings.currency} ${txn.amount.toLocaleString()} for "${txn.title}" was recorded.`,
+          'large_expense'
+        );
       }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'users/transactions');
     }
-
-    // Update transactions list
-    set(state => ({
-      transactions: [newTxn, ...state.transactions]
-    }));
   },
 
-  updateTransaction: (updatedTxn) => {
+  updateTransaction: async (txn) => {
     const { user } = get();
     if (!user) return;
-
-    StorageService.updateTransaction(user.id, updatedTxn);
-    set(state => ({
-      transactions: state.transactions.map(t => t.id === updatedTxn.id ? updatedTxn : t)
-    }));
+    try {
+      await updateDoc(doc(db, 'users', user.id, 'transactions', txn.id), { ...txn });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users/transactions');
+    }
   },
 
-  deleteTransaction: (id) => {
+  deleteTransaction: async (id) => {
     const { user } = get();
     if (!user) return;
-
-    StorageService.deleteTransaction(user.id, id);
-    set(state => ({
-      transactions: state.transactions.filter(t => t.id !== id)
-    }));
+    try {
+      await deleteDoc(doc(db, 'users', user.id, 'transactions', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'users/transactions');
+    }
   },
 
   // --- CATEGORIES ---
-  fetchCategories: () => {
+  addCategory: async (category) => {
     const { user } = get();
     if (!user) return;
-    set({ categories: StorageService.getCategories(user.id) });
+    try {
+      const newCatRef = doc(collection(db, 'users', user.id, 'categories'));
+      await setDoc(newCatRef, { ...category, id: newCatRef.id, userId: user.id });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'users/categories');
+    }
   },
 
-  addCategory: (category) => {
+  updateCategory: async (category) => {
     const { user } = get();
     if (!user) return;
-
-    const newCat = StorageService.addCategory(user.id, category);
-    set(state => ({
-      categories: [...state.categories, newCat]
-    }));
+    try {
+      await updateDoc(doc(db, 'users', user.id, 'categories', category.id), { ...category });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users/categories');
+    }
   },
 
-  updateCategory: (category) => {
+  deleteCategory: async (id) => {
     const { user } = get();
     if (!user) return;
-
-    StorageService.updateCategory(user.id, category);
-    set(state => ({
-      categories: state.categories.map(c => c.id === category.id ? category : c)
-    }));
-  },
-
-  deleteCategory: (id) => {
-    const { user } = get();
-    if (!user) return;
-
-    StorageService.deleteCategory(user.id, id);
-    set(state => ({
-      categories: state.categories.filter(c => c.id !== id)
-    }));
+    try {
+      await deleteDoc(doc(db, 'users', user.id, 'categories', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'users/categories');
+    }
   },
 
   // --- BUDGETS ---
-  fetchBudgets: () => {
+  saveBudget: async (budget) => {
     const { user } = get();
     if (!user) return;
-    set({ budgets: StorageService.getBudgets(user.id) });
-  },
-
-  saveBudget: (budget) => {
-    const { user } = get();
-    if (!user) return;
-
-    const saved = StorageService.saveBudget(user.id, budget);
-    set(state => {
-      const idx = state.budgets.findIndex(b => b.id === saved.id);
-      if (idx !== -1) {
-        const next = [...state.budgets];
-        next[idx] = saved;
-        return { budgets: next };
+    try {
+      if ('id' in budget && (budget as any).id) {
+        await updateDoc(doc(db, 'users', user.id, 'budgets', (budget as any).id), { ...budget });
+      } else {
+        const newBudgetRef = doc(collection(db, 'users', user.id, 'budgets'));
+        await setDoc(newBudgetRef, { ...budget, id: newBudgetRef.id, userId: user.id });
       }
-      return { budgets: [...state.budgets, saved] };
-    });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'users/budgets');
+    }
   },
 
-  deleteBudget: (id) => {
+  deleteBudget: async (id) => {
     const { user } = get();
     if (!user) return;
-
-    StorageService.deleteBudget(user.id, id);
-    set(state => ({
-      budgets: state.budgets.filter(b => b.id !== id)
-    }));
+    try {
+      await deleteDoc(doc(db, 'users', user.id, 'budgets', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'users/budgets');
+    }
   },
 
   // --- SAVINGS GOALS ---
-  fetchGoals: () => {
+  saveGoal: async (goal) => {
     const { user } = get();
     if (!user) return;
-    set({ goals: StorageService.getGoals(user.id) });
+    try {
+      if ('id' in goal && (goal as any).id) {
+        await updateDoc(doc(db, 'users', user.id, 'goals', (goal as any).id), { ...goal });
+      } else {
+        const newGoalRef = doc(collection(db, 'users', user.id, 'goals'));
+        await setDoc(newGoalRef, { ...goal, id: newGoalRef.id, userId: user.id });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'users/goals');
+    }
   },
 
-  saveGoal: (goal) => {
+  deleteGoal: async (id) => {
     const { user } = get();
     if (!user) return;
-
-    // Detect if goal is newly completed
-    let isCompletedJustNow = false;
-    if ('id' in goal) {
-      const prevGoal = get().goals.find(g => g.id === goal.id);
-      if (prevGoal && prevGoal.currentAmount < prevGoal.targetAmount && goal.currentAmount >= goal.targetAmount) {
-        isCompletedJustNow = true;
-      }
-    } else {
-      if (goal.currentAmount >= goal.targetAmount) {
-        isCompletedJustNow = true;
-      }
+    try {
+      await deleteDoc(doc(db, 'users', user.id, 'goals', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'users/goals');
     }
-
-    const saved = StorageService.saveGoal(user.id, goal);
-
-    if (isCompletedJustNow) {
-      get().addNotification(
-        'Savings Goal Achieved! 🎉',
-        `Fantastic job! You've successfully hit your target of ${get().settings?.currency || 'Rs'} ${saved.targetAmount.toLocaleString()} for "${saved.name}"!`,
-        'goal_alert'
-      );
-    }
-
-    set(state => {
-      const idx = state.goals.findIndex(g => g.id === saved.id);
-      if (idx !== -1) {
-        const next = [...state.goals];
-        next[idx] = saved;
-        return { goals: next };
-      }
-      return { goals: [...state.goals, saved] };
-    });
-  },
-
-  deleteGoal: (id) => {
-    const { user } = get();
-    if (!user) return;
-
-    StorageService.deleteGoal(user.id, id);
-    set(state => ({
-      goals: state.goals.filter(g => g.id !== id)
-    }));
   },
 
   // --- SETTINGS ---
-  fetchSettings: () => {
+  updateSettings: async (settings) => {
     const { user } = get();
     if (!user) return;
-    set({ settings: StorageService.getSettings(user.id) });
-  },
-
-  updateSettings: (settings) => {
-    const { user } = get();
-    if (!user) return;
-
-    StorageService.saveSettings(user.id, settings);
-    set({ settings });
-
-    // Also sync dark mode with theme
-    get().updateProfile({ theme: settings.darkMode ? 'dark' : 'light' });
+    try {
+      await updateDoc(doc(db, 'users', user.id, 'settings', 'default'), { ...settings });
+      if (settings.darkMode) {
+        get().updateUserProfile({ theme: 'dark' });
+      } else {
+        get().updateUserProfile({ theme: 'light' });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users/settings');
+    }
   },
 
   // --- NOTIFICATIONS ---
-  fetchNotifications: () => {
+  addNotification: async (title, message, type) => {
     const { user } = get();
     if (!user) return;
-    set({ notifications: StorageService.getNotifications(user.id) });
+    try {
+      const notifRef = doc(collection(db, 'users', user.id, 'notifications'));
+      await setDoc(notifRef, {
+        id: notifRef.id,
+        userId: user.id,
+        title,
+        message,
+        type,
+        date: new Date().toISOString(),
+        read: false
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'users/notifications');
+    }
   },
 
-  addNotification: (title, message, type) => {
+  markNotificationRead: async (id) => {
     const { user } = get();
     if (!user) return;
-
-    const newNotif = StorageService.addNotification(user.id, { title, message, type });
-    set(state => ({
-      notifications: [newNotif, ...state.notifications]
-    }));
+    try {
+      await updateDoc(doc(db, 'users', user.id, 'notifications', id), { read: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users/notifications');
+    }
   },
 
-  markNotificationRead: (id) => {
-    const { user } = get();
+  markAllNotificationsRead: async () => {
+    const { user, notifications } = get();
     if (!user) return;
-
-    StorageService.markAsRead(user.id, id);
-    set(state => ({
-      notifications: state.notifications.map(n => n.id === id ? { ...n, read: true } : n)
-    }));
+    try {
+      await Promise.all(
+        notifications.filter(n => !n.read).map(n => 
+          updateDoc(doc(db, 'users', user.id, 'notifications', n.id), { read: true })
+        )
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'users/notifications');
+    }
   },
 
-  markAllNotificationsRead: () => {
-    const { user } = get();
+  clearNotifications: async () => {
+    const { user, notifications } = get();
     if (!user) return;
-
-    StorageService.markAllAsRead(user.id);
-    set(state => ({
-      notifications: state.notifications.map(n => ({ ...n, read: true }))
-    }));
-  },
-
-  clearNotifications: () => {
-    const { user } = get();
-    if (!user) return;
-
-    StorageService.clearNotifications(user.id);
-    set({ notifications: [] });
+    try {
+      await Promise.all(
+        notifications.map(n => 
+          deleteDoc(doc(db, 'users', user.id, 'notifications', n.id))
+        )
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'users/notifications');
+    }
   },
 
   // --- GLOBAL ---
   resetAllData: () => {
-    StorageService.resetAllData();
-    set({
-      user: null,
-      transactions: [],
-      categories: [],
-      budgets: [],
-      goals: [],
-      settings: null,
-      notifications: [],
-    });
+    // Only sign out in a connected environment (can't easily wipe all user subcollections here without server-side functions)
+    signOut(auth);
   }
 }));

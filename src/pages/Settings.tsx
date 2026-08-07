@@ -25,7 +25,7 @@ export default function Settings() {
   const {
     user,
     settings,
-    updateProfile,
+    updateUserProfile,
     updateSettings,
     resetAllData,
     init
@@ -61,7 +61,7 @@ export default function Settings() {
     e.preventDefault();
     if (!name || !email) return;
 
-    updateProfile({
+    updateUserProfile({
       name,
       email
     });

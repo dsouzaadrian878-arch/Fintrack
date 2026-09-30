@@ -19,7 +19,7 @@ import {
   Trash2,
   Check
 } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Button } from '../components/UI';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

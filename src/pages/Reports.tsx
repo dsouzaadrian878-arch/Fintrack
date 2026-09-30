@@ -10,10 +10,10 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Briefcase
+  Briefcase,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Card, Button, Input } from '../components/UI';
 
 export default function Reports() {

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useStore } from './store';
+import { useStore } from './services/firebase';
 import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
 import Signup from './pages/Signup';

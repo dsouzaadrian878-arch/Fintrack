@@ -17,7 +17,7 @@ import {
   HelpCircle,
   Camera
 } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Card, Button, Input, Modal } from '../components/UI';
 import { CURRENCIES } from '../constants';
 

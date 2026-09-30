@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Mail, Lock, User, ShieldCheck, ArrowRight } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Input, Button, Card } from '../components/UI';
 
 export default function Signup() {

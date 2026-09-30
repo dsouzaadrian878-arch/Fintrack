@@ -21,7 +21,7 @@ import {
   Sparkles,
   BookOpen
 } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Card, Button, Input, Modal, EmptyState } from '../components/UI';
 import LucideIcon from '../components/LucideIcon';
 import { Transaction } from '../types';
@@ -31,6 +31,7 @@ export default function Transactions() {
     transactions,
     categories,
     settings,
+    error,
     addTransaction,
     updateTransaction,
     deleteTransaction
@@ -164,7 +165,7 @@ export default function Transactions() {
     setIsFormOpen(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !amount || !categoryId) return;
 
@@ -184,16 +185,19 @@ export default function Transactions() {
       tags: tags.length > 0 ? tags : undefined
     };
 
-    if (editingTxn) {
-      updateTransaction({
-        ...editingTxn,
-        ...txnData
-      });
-    } else {
-      addTransaction(txnData);
+    try {
+      if (editingTxn) {
+        await updateTransaction({
+          ...editingTxn,
+          ...txnData
+        });
+      } else {
+        await addTransaction(txnData);
+      }
+      setIsFormOpen(false);
+    } catch {
+      // Keep the modal open so the database error remains visible to the user.
     }
-
-    setIsFormOpen(false);
   };
 
   const handleDeleteConfirm = () => {
@@ -400,6 +404,7 @@ export default function Transactions() {
       {/* CRUD TRANSACTION FORM MODAL */}
       <Modal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} title={editingTxn ? 'Edit Entry' : 'New Ledger Entry'} size="md">
         <form onSubmit={handleFormSubmit} className="space-y-4">
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-600 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-400">{error}</div>}
           <div className="flex bg-slate-50 dark:bg-slate-950 p-1 rounded-xl">
             <button
               type="button"

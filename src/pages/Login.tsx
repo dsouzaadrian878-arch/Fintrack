@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Input, Button, Card } from '../components/UI';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, googleLogin, isLoading, error } = useStore();
+  const { login, googleLogin, resetPassword, isLoading, error } = useStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -95,9 +95,10 @@ export default function Login() {
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  setShowForgotMsg(true);
-                  setTimeout(() => setShowForgotMsg(false), 5000);
+                onClick={async () => {
+                  if (!email) return;
+                  const sent = await resetPassword(email);
+                  setShowForgotMsg(sent);
                 }}
                 className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline outline-none"
               >

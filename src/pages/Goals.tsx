@@ -13,7 +13,7 @@ import {
   Flame,
   CheckCircle2
 } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Card, Button, Input, Modal, EmptyState } from '../components/UI';
 
 export default function Goals() {

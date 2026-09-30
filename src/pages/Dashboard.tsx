@@ -35,7 +35,7 @@ import {
   LineChart,
   Line
 } from 'recharts';
-import { useStore } from '../store';
+import { useStore } from '../services/firebase';
 import { Card, Button, Input, Modal, EmptyState } from '../components/UI';
 import LucideIcon from '../components/LucideIcon';
 
@@ -48,6 +48,7 @@ export default function Dashboard() {
     budgets,
     goals,
     settings,
+    error,
     addTransaction,
     addNotification
   } = useStore();
@@ -239,7 +240,7 @@ export default function Dashboard() {
   }, [transactions]);
 
   // Handle Quick Add Submit
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !amount || !categoryId) return;
 
@@ -248,16 +249,20 @@ export default function Dashboard() {
       .map(tag => tag.trim())
       .filter(tag => tag.length > 0);
 
-    addTransaction({
-      title,
-      amount: parseFloat(amount),
-      type: txnType,
-      categoryId,
-      paymentMethod,
-      date,
-      notes: notes || undefined,
-      tags: tags.length > 0 ? tags : undefined
-    });
+    try {
+      await addTransaction({
+        title,
+        amount: parseFloat(amount),
+        type: txnType,
+        categoryId,
+        paymentMethod,
+        date,
+        notes: notes || undefined,
+        tags: tags.length > 0 ? tags : undefined
+      });
+    } catch {
+      return;
+    }
 
     // Reset Form
     setTitle('');
@@ -635,6 +640,7 @@ export default function Dashboard() {
       {/* QUICK ADD MODAL */}
       <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Log Transaction" size="md">
         <form onSubmit={handleAddSubmit} className="space-y-4">
+          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-600 dark:border-rose-800 dark:bg-rose-950/20 dark:text-rose-400">{error}</div>}
           {/* Income vs Expense Selection Tabs */}
           <div className="flex bg-slate-50 dark:bg-slate-950 p-1 rounded-xl">
             <button
